@@ -1,0 +1,11 @@
+{
+  "financial_qa": {
+    "file_name": "financial_qa.json",
+    "formatting": "alpaca",
+    "columns": {
+      "prompt": "instruction",
+      "query": "input",
+      "response": "output"
+    }
+  }
+}

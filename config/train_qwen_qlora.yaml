@@ -1,0 +1,81 @@
+# ============================================================
+# LLaMA-Factory 训练配置文件
+# 模型: Qwen2.5-7B-Instruct
+# 方法: QLoRA (4-bit)
+# 硬件: NVIDIA DGX Spark (GB10, 128GB 统一内存)
+# ============================================================
+
+### 模型配置
+#model_name_or_path: Qwen/Qwen2.5-7B-Instruct
+model_name_or_path: /home/hyl/Desktop/qwen-finetune/models/qwen2.5-7b
+trust_remote_code: true
+
+### 训练方法
+finetuning_type: lora
+quantization_bit: 4                      # 4-bit 量化 (QLoRA)
+quantization_method: bitsandbytes        # 量化方法
+quantization_device_map: auto
+
+### LoRA 参数
+lora_target: all                         # 对所有线性层应用 LoRA
+lora_rank: 8                             # LoRA 秩 (rank)，8 在效果和效率间平衡
+lora_alpha: 16                           # LoRA alpha 缩放参数
+lora_dropout: 0.05                       # Dropout 防过拟合
+loraplus_lr_ratio: null                  # LoRA+ 学习率比例 (设为 null 则禁用)
+
+### 数据集配置
+dataset: financial_qa                    # 数据集名称 (对应 dataset_info.json)
+dataset_dir: data                        # 数据集目录
+template: qwen                           # 对话模板 (Qwen 系列使用 qwen)
+cutoff_len: 2048                         # 最大序列长度
+overlong_policy: truncate                # 超长策略: 截断
+
+### 训练参数
+per_device_train_batch_size: 2           # 每设备 batch size
+gradient_accumulation_steps: 4           # 梯度累积步数
+learning_rate: 2.0e-4                    # 学习率
+num_train_epochs: 5.0                    # 训练轮数（63 条数据，5 轮约 315 步）
+max_steps: -1                            # 最大步数 (-1 为不限制)
+lr_scheduler_type: cosine                # 学习率调度器
+warmup_ratio: 0.05                       # 预热比例
+weight_decay: 0.01                       # 权重衰减
+
+### 优化器
+optim: adamw_torch                       # 优化器
+adam_beta1: 0.9
+adam_beta2: 0.999
+adam_epsilon: 1e-8
+max_grad_norm: 1.0                       # 梯度裁剪
+
+### 保存策略
+output_dir: output/qwen-qlora-financial  # 输出目录
+logging_steps: 5                         # 日志频率
+save_strategy: epoch                     # 每轮保存
+save_only_model: false                   # 是否只保存模型权重
+save_total_limit: 3                      # 最多保留 3 个 checkpoint
+
+### 评估策略
+eval_strategy: epoch                     # 每轮评估
+eval_steps: null
+per_device_eval_batch_size: 2
+val_size: 0.1                            # 10% 作为验证集
+
+### 加速与精度
+bf16: true                               # bfloat16 精度 (DGX Spark 支持)
+fp16: false
+pure_bf16: true
+flash_attn: auto                         # 自动使用 FlashAttention-2 (如已安装)
+
+### 分布式训练
+ddp_timeout: 180000000
+
+### 报告与监控
+report_to: none                          # 不使用 WandB/TensorBoard
+# report_to: tensorboard                 # 如需可视化监控请取消注释
+
+### 其他
+seed: 42
+dataloader_num_workers: 4
+dataloader_pin_memory: true
+packing: false                           # 不启用 packing
+neat_packing: false

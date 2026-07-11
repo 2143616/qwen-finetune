@@ -1,0 +1,19 @@
+# ============================================================
+# LLaMA-Factory 模型导出配置文件
+# 将微调后的 LoRA 权重合并并导出为 GGUF 格式
+# 然后可直接用 Ollama 加载运行
+# ============================================================
+
+model_name_or_path: Qwen/Qwen2.5-7B-Instruct
+trust_remote_code: true
+
+adapter_name_or_path: output/qwen-qlora-financial
+
+finetuning_type: lora
+template: qwen
+export_dir: output/qwen-financial-gguf
+export_size: 2                           # Max shard size in GB
+export_quantization_bit: 4               # GGUF 量化位数
+export_quantization_dataset: data/financial_qa.json
+export_device: cpu                       # CPU 导出 (更稳定)
+export_to_ollama: true                   # 自动生成 Ollama Modelfile

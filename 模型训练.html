@@ -1,0 +1,1358 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LLaMA-Factory 微调实战教程 — Qwen2.5-7B + QLoRA</title>
+<style>
+  :root {
+    --primary: #6366f1;
+    --primary-dark: #4f46e5;
+    --bg: #0f172a;
+    --bg2: #1e293b;
+    --bg3: #334155;
+    --text: #f1f5f9;
+    --text2: #94a3b8;
+    --accent: #22d3ee;
+    --success: #4ade80;
+    --warning: #fbbf24;
+    --danger: #f87171;
+    --border: #334155;
+    --code-bg: #1e293b;
+    --card-bg: #1e293b;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans SC", sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.8;
+    font-size: 16px;
+  }
+
+  /* Header hero */
+  .hero {
+    background: linear-gradient(135deg, #0f172a 0%, #1e1b4b 50%, #0f172a 100%);
+    padding: 60px 20px 40px;
+    text-align: center;
+    border-bottom: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+  }
+  .hero::before {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: radial-gradient(ellipse at 30% 50%, rgba(99,102,241,0.08) 0%, transparent 60%),
+                radial-gradient(ellipse at 70% 50%, rgba(34,211,238,0.06) 0%, transparent 60%);
+    animation: float 20s ease-in-out infinite;
+  }
+  @keyframes float {
+    0%, 100% { transform: translate(0, 0); }
+    50% { transform: translate(-20px, -20px); }
+  }
+  .hero h1 {
+    font-size: 2.8em;
+    background: linear-gradient(135deg, #818cf8, #22d3ee);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    margin-bottom: 12px;
+    position: relative;
+    letter-spacing: -0.02em;
+  }
+  .hero .subtitle {
+    color: var(--text2);
+    font-size: 1.15em;
+    position: relative;
+  }
+  .hero .badge-row {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    position: relative;
+  }
+  .badge {
+    display: inline-block;
+    padding: 5px 14px;
+    border-radius: 20px;
+    font-size: 0.85em;
+    font-weight: 600;
+  }
+  .badge-purple { background: rgba(99,102,241,0.2); color: #a5b4fc; border: 1px solid rgba(99,102,241,0.3); }
+  .badge-cyan { background: rgba(34,211,238,0.15); color: #67e8f9; border: 1px solid rgba(34,211,238,0.25); }
+  .badge-green { background: rgba(74,222,128,0.15); color: #86efac; border: 1px solid rgba(74,222,128,0.25); }
+  .badge-orange { background: rgba(251,191,36,0.15); color: #fde68a; border: 1px solid rgba(251,191,36,0.25); }
+
+  /* Container */
+  .container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 20px;
+  }
+
+  /* TOC */
+  .toc {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 24px 30px;
+    margin: 30px 0;
+  }
+  .toc h2 {
+    font-size: 1.2em;
+    color: var(--accent);
+    margin-bottom: 14px;
+  }
+  .toc ol {
+    padding-left: 20px;
+  }
+  .toc ol li {
+    margin: 6px 0;
+    color: var(--text2);
+  }
+  .toc ol li a {
+    color: var(--text2);
+    text-decoration: none;
+    transition: color 0.2s;
+  }
+  .toc ol li a:hover { color: var(--primary); }
+
+  /* Sections */
+  section { padding: 40px 0; border-bottom: 1px solid rgba(51,65,85,0.5); }
+  section:last-child { border-bottom: none; }
+  h2 {
+    font-size: 1.6em;
+    color: var(--accent);
+    margin-bottom: 20px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid var(--bg3);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  h2 .num {
+    background: var(--primary);
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.7em;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  h3 {
+    font-size: 1.2em;
+    color: #e2e8f0;
+    margin: 24px 0 12px;
+  }
+  h4 {
+    font-size: 1.05em;
+    color: #cbd5e1;
+    margin: 18px 0 8px;
+  }
+  p { margin: 10px 0; color: var(--text2); }
+  ul, ol { padding-left: 20px; margin: 8px 0; }
+  li { margin: 5px 0; color: var(--text2); }
+
+  /* Code */
+  code {
+    font-family: "JetBrains Mono", "Fira Code", "Consolas", monospace;
+    background: var(--code-bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 0.9em;
+    color: #e2e8f0;
+    border: 1px solid var(--border);
+  }
+  pre {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 20px;
+    overflow-x: auto;
+    margin: 14px 0;
+    position: relative;
+  }
+  pre code {
+    background: none;
+    border: none;
+    padding: 0;
+    font-size: 0.88em;
+    line-height: 1.6;
+    color: #e2e8f0;
+  }
+  .code-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    background: #161b22;
+    border: 1px solid var(--border);
+    border-bottom: none;
+    border-radius: 10px 10px 0 0;
+    margin-top: 14px;
+  }
+  .code-header + pre {
+    border-radius: 0 0 10px 10px;
+    margin-top: 0;
+    border-top: none;
+  }
+  .code-lang {
+    font-size: 0.78em;
+    color: var(--text2);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .code-copy {
+    font-size: 0.78em;
+    color: var(--text2);
+    cursor: pointer;
+  }
+
+  /* Cards */
+  .card {
+    background: var(--card-bg);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px 24px;
+    margin: 16px 0;
+  }
+  .card-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+    margin: 14px 0;
+  }
+  .card-grid .card { margin: 0; }
+  .card-title {
+    font-weight: 600;
+    color: var(--text);
+    font-size: 1em;
+    margin-bottom: 6px;
+  }
+  .card-desc {
+    font-size: 0.9em;
+    color: var(--text2);
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 14px 0;
+    font-size: 0.95em;
+  }
+  thead th {
+    background: var(--bg3);
+    color: var(--text);
+    padding: 10px 14px;
+    text-align: left;
+    font-weight: 600;
+    border: 1px solid var(--border);
+  }
+  tbody td {
+    padding: 9px 14px;
+    border: 1px solid var(--border);
+    color: var(--text2);
+  }
+  tbody tr:nth-child(even) { background: rgba(51,65,85,0.3); }
+  tbody tr:hover { background: rgba(99,102,241,0.05); }
+
+  /* Callout boxes */
+  .callout {
+    border-radius: 10px;
+    padding: 16px 20px;
+    margin: 16px 0;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+  }
+  .callout-icon { font-size: 1.3em; flex-shrink: 0; margin-top: 2px; }
+  .callout-content { flex: 1; }
+  .callout-content p { margin: 4px 0; }
+  .callout-content p:first-child { margin-top: 0; }
+  .callout-content p:last-child { margin-bottom: 0; }
+  .callout-info {
+    background: rgba(99,102,241,0.1);
+    border: 1px solid rgba(99,102,241,0.25);
+  }
+  .callout-info .callout-content p { color: #a5b4fc; }
+  .callout-success {
+    background: rgba(74,222,128,0.08);
+    border: 1px solid rgba(74,222,128,0.2);
+  }
+  .callout-success .callout-content p { color: #86efac; }
+  .callout-warning {
+    background: rgba(251,191,36,0.08);
+    border: 1px solid rgba(251,191,36,0.2);
+  }
+  .callout-warning .callout-content p { color: #fde68a; }
+  .callout-danger {
+    background: rgba(248,113,113,0.08);
+    border: 1px solid rgba(248,113,113,0.2);
+  }
+  .callout-danger .callout-content p { color: #fca5a5; }
+
+  /* Steps */
+  .step {
+    display: flex;
+    gap: 16px;
+    margin: 20px 0;
+    padding: 18px 20px;
+    background: var(--bg2);
+    border-radius: 10px;
+    border: 1px solid var(--border);
+  }
+  .step-num {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--primary);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.95em;
+    flex-shrink: 0;
+  }
+  .step-content { flex: 1; }
+  .step-content p { margin: 4px 0; }
+
+  /* File tree */
+  .file-tree {
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 20px;
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-size: 0.88em;
+    line-height: 2;
+    margin: 14px 0;
+  }
+  .file-tree .dir { color: #58a6ff; }
+  .file-tree .file { color: #8b949e; }
+  .file-tree .indent { padding-left: 24px; }
+  .file-tree .indent2 { padding-left: 48px; }
+
+  /* Footer */
+  footer {
+    text-align: center;
+    padding: 30px;
+    color: var(--text2);
+    font-size: 0.9em;
+    border-top: 1px solid var(--border);
+  }
+
+  /* Responsive */
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 1.8em; }
+    .card-grid { grid-template-columns: 1fr; }
+    table { font-size: 0.85em; }
+    .step { flex-direction: column; }
+    .step-num { width: 30px; height: 30px; font-size: 0.85em; }
+  }
+
+  /* Syntax highlight */
+  .kw { color: #ff79c6; }
+  .str { color: #f1fa8c; }
+  .cm { color: #6272a4; }
+  .fn { color: #50fa7b; }
+  .num { color: #bd93f9; }
+  .prop { color: #8be9fd; }
+
+  /* Section divider */
+  .divider { text-align: center; padding: 10px 0; color: var(--bg3); font-size: 1.5em; letter-spacing: 8px; }
+
+  .project-tree {
+    font-family: "JetBrains Mono", "Fira Code", monospace;
+    font-size: 0.88em;
+    background: #0d1117;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 18px 22px;
+    line-height: 2.1;
+  }
+  .project-tree .folder { color: #58a6ff; }
+  .project-tree .file { color: #8b949e; }
+  .project-tree .indent1 { padding-left: 24px; }
+  .project-tree .indent2 { padding-left: 48px; }
+  .project-tree .indent3 { padding-left: 72px; }
+  .project-tree .comment { color: #6272a4; font-style: italic; }
+</style>
+</head>
+<body>
+
+<!-- ==================== HERO ==================== -->
+<div class="hero">
+  <h1>🦙 LLaMA-Factory 微调实战教程</h1>
+  <p class="subtitle">在 NVIDIA DGX Spark 上使用 QLoRA 微调 Qwen2.5-7B 金融问答模型</p>
+  <div class="badge-row">
+    <span class="badge badge-purple">Qwen2.5-7B</span>
+    <span class="badge badge-cyan">QLoRA (4-bit)</span>
+    <span class="badge badge-green">NVIDIA DGX Spark</span>
+    <span class="badge badge-orange">LLaMA-Factory</span>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- ==================== TOC ==================== -->
+<div class="toc">
+  <h2>📑 目录</h2>
+  <ol>
+    <li><a href="#intro">项目概述与环境介绍</a></li>
+    <li><a href="#hardware">硬件与软件环境要求</a></li>
+    <li><a href="#project">项目结构与文件说明</a></li>
+    <li><a href="#setup">环境搭建</a></li>
+    <li><a href="#data">数据集准备与格式说明</a></li>
+    <li><a href="#train">启动训练（Web UI 方式）</a></li>
+    <li><a href="#train-cli">启动训练（命令行方式）</a></li>
+    <li><a href="#monitor">训练监控与 GPU 资源管理</a></li>
+    <li><a href="#eval">模型评估与对话推理</a></li>
+    <li><a href="#export">导出模型并部署到 Ollama</a></li>
+    <li><a href="#troubleshoot">常见问题与故障排除</a></li>
+    <li><a href="#appendix">附录：参数详解</a></li>
+  </ol>
+</div>
+
+<!-- ==================== SECTION 1 ==================== -->
+<section id="intro">
+  <h2><span class="num">1</span> 项目概述与环境介绍</h2>
+
+  <h3>🎯 实验目标</h3>
+  <p>使用 <strong>LLaMA-Factory</strong> 框架，在 <strong>NVIDIA DGX Spark</strong> 上通过 <strong>QLoRA (4-bit)</strong> 技术微调 <strong>Qwen2.5-7B-Instruct</strong> 模型，使其具备金融领域问答能力。</p>
+
+  <h3>🧰 技术栈</h3>
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title">🦙 LLaMA-Factory</div>
+      <div class="card-desc">统一微调框架，支持 100+ 模型，零代码 Web UI</div>
+    </div>
+    <div class="card">
+      <div class="card-title">🤖 Qwen2.5-7B</div>
+      <div class="card-desc">阿里通义千问 2.5 系列，7B 参数，中文优化</div>
+    </div>
+    <div class="card">
+      <div class="card-title">⚡ QLoRA (4-bit)</div>
+      <div class="card-desc">4-bit 量化 LoRA，大幅降低显存需求</div>
+    </div>
+    <div class="card">
+      <div class="card-title">🔲 DGX Spark</div>
+      <div class="card-desc">NVIDIA Grace Blackwell 紧凑型 AI 工作站，128GB 统一内存</div>
+    </div>
+  </div>
+
+  <h3>📐 微调原理简述</h3>
+  <p><strong>QLoRA (Quantized Low-Rank Adaptation)</strong> 结合了两种关键技术：</p>
+  <ul>
+    <li><strong>量化（Quantization）</strong>：将模型权重从 16-bit 压缩到 4-bit，显存占用降低约 75%</li>
+    <li><strong>LoRA（Low-Rank Adaptation）</strong>：冻结原始权重，仅训练少量低秩适配矩阵（参数量仅为原始模型的 0.1%-1%）</li>
+  </ul>
+  <p>通过 QLoRA，一块 8GB 显存的 GPU 即可微调 70 亿参数的大模型，而全参数微调需要约 120GB 显存。</p>
+
+  <div class="callout callout-info">
+    <span class="callout-icon">💡</span>
+    <div class="callout-content">
+      <p><strong>核心优势</strong>：QLoRA 在将显存需求降低 20 倍的同时，保留了全参数微调 95% 以上的效果，是消费级硬件微调大模型的首选方案。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 2 ==================== -->
+<section id="hardware">
+  <h2><span class="num">2</span> 硬件与软件环境要求</h2>
+
+  <h3>🖥️ 硬件要求</h3>
+  <table>
+    <thead>
+      <tr><th>组件</th><th>最低配置</th><th>推荐配置</th><th>本实验 (DGX Spark)</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>GPU 显存</td><td>8 GB</td><td>16 GB+</td><td>128 GB 统一内存</td></tr>
+      <tr><td>CPU 核心</td><td>4 核</td><td>8 核+</td><td>20 核 (ARM Grace CPU)</td></tr>
+      <tr><td>系统内存</td><td>16 GB</td><td>32 GB+</td><td>128 GB (统一)</td></tr>
+      <tr><td>磁盘空间</td><td>30 GB</td><td>50 GB+</td><td>充裕</td></tr>
+      <tr><td>CUDA 版本</td><td>11.6</td><td>12.2+</td><td>12.2 ✅</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-success">
+    <span class="callout-icon">✅</span>
+    <div class="callout-content">
+      <p><strong>NVIDIA DGX Spark</strong> 搭载 Grace Blackwell 超级芯片，128GB 统一内存让 CPU 和 GPU 共享内存池，无需显存不足的担忧——这是消费级显卡无法比拟的优势。</p>
+    </div>
+  </div>
+
+  <h3>📦 软件依赖清单</h3>
+  <table>
+    <thead>
+      <tr><th>软件包</th><th>最低版本</th><th>备注</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Python</td><td>3.11</td><td>推荐 3.11 或更高</td></tr>
+      <tr><td>PyTorch</td><td>2.0.0</td><td>推荐 2.6.0 (CUDA 12.4)</td></tr>
+      <tr><td>transformers</td><td>4.49.0</td><td>HuggingFace 核心库</td></tr>
+      <tr><td>datasets</td><td>2.16.0</td><td>数据集加载</td></tr>
+      <tr><td>accelerate</td><td>0.34.0</td><td>分布式训练加速</td></tr>
+      <tr><td>peft</td><td>0.14.0</td><td>LoRA/QLoRA 核心库</td></tr>
+      <tr><td>trl</td><td>0.8.6</td><td>强化学习训练</td></tr>
+      <tr><td>bitsandbytes</td><td>0.39.0</td><td>4-bit 量化支持</td></tr>
+      <tr><td>gradio</td><td>最新</td><td>Web UI 界面</td></tr>
+      <tr><td>flash-attn</td><td>2.5.6 (可选)</td><td>加速训练 2-3 倍</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ==================== SECTION 3 ==================== -->
+<section id="project">
+  <h2><span class="num">3</span> 项目结构与文件说明</h2>
+
+  <p>本教程项目的完整目录结构如下：</p>
+
+  <div class="project-tree">
+    <span class="folder">📁 qwen-finetune/</span><br>
+    <span class="indent1">├── <span class="file">📄 data/</span></span><br>
+    <span class="indent2">├── <span class="file">📄 financial_qa.json</span> <span class="comment">← 金融问答数据集 (Alpaca 格式)</span></span><br>
+    <span class="indent2">└── <span class="file">📄 dataset_info.json</span> <span class="comment">← 数据集注册文件</span></span><br>
+    <span class="indent1">├── <span class="file">📁 config/</span></span><br>
+    <span class="indent2">├── <span class="file">📄 train_qwen_qlora.yaml</span> <span class="comment">← QLoRA 训练配置文件</span></span><br>
+    <span class="indent2">├── <span class="file">📄 inference.yaml</span> <span class="comment">← 推理配置文件</span></span><br>
+    <span class="indent2">└── <span class="file">📄 export_ollama.yaml</span> <span class="comment">← Ollama 导出配置</span></span><br>
+    <span class="indent1">├── <span class="file">📁 scripts/</span></span><br>
+    <span class="indent2">├── <span class="file">📄 start_webui.sh</span> <span class="comment">← 启动 LLaMA Board Web UI</span></span><br>
+    <span class="indent2">├── <span class="file">📄 start_training.sh</span> <span class="comment">← 命令行一键训练</span></span><br>
+    <span class="indent2">└── <span class="file">📄 monitor_gpu.sh</span> <span class="comment">← GPU 资源监控</span></span><br>
+    <span class="indent1">├── <span class="file">📁 output/</span> <span class="comment">← 训练输出目录 (自动生成)</span></span><br>
+    <span class="indent2">└── <span class="file">📁 qwen-qlora-financial/</span> <span class="comment">← 微调后的权重保存位置</span></span><br>
+    <span class="indent1">└── <span class="file">📄 模型训练.html</span> <span class="comment">← 你正在阅读的这份教程 😊</span></span>
+  </div>
+
+  <h3>📋 各文件作用速览</h3>
+  <table>
+    <thead>
+      <tr><th>文件</th><th>作用</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>data/financial_qa.json</code></td><td>10 条金融领域问答数据（Alpaca 格式），用于微调</td></tr>
+      <tr><td><code>data/dataset_info.json</code></td><td>告知 LLaMA-Factory 如何解析数据集</td></tr>
+      <tr><td><code>config/train_qwen_qlora.yaml</code></td><td>核心训练配置：模型、数据集、LoRA 参数、训练超参</td></tr>
+      <tr><td><code>config/inference.yaml</code></td><td>推理配置：加载 LoRA 权重进行对话</td></tr>
+      <tr><td><code>config/export_ollama.yaml</code></td><td>导出配置：合并权重 → GGUF → Ollama Modelfile</td></tr>
+      <tr><td><code>scripts/start_webui.sh</code></td><td>一键启动 LLaMA Board 图形界面</td></tr>
+      <tr><td><code>scripts/start_training.sh</code></td><td>命令行启动训练（无需 GUI）</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ==================== SECTION 4 ==================== -->
+<section id="setup">
+  <h2><span class="num">4</span> 环境搭建</h2>
+
+  <p>请按照以下步骤在你的 DGX Spark 上搭建完整的微调环境。</p>
+
+  <h3>步骤 1：安装 Miniconda（如未安装）</h3>
+  <pre><code>wget https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-aarch64.sh
+bash Miniconda3-latest-Linux-aarch64.sh
+# 按提示完成安装，重启终端或 source ~/.bashrc</code></pre>
+
+  <div class="callout callout-warning">
+    <span class="callout-icon">⚠️</span>
+    <div class="callout-content">
+      <p>DGX Spark 是 ARM64 (aarch64) 架构，请务必下载 <code>aarch64</code> 版本的 Miniconda，不要使用 x86_64 版本！</p>
+    </div>
+  </div>
+
+  <h3>步骤 2：创建 conda 环境</h3>
+  <pre><code>conda create -n llamafactory python=3.11 -y
+conda activate llamafactory</code></pre>
+
+  <h3>步骤 3：安装 PyTorch（带 CUDA）</h3>
+  <pre><code>pip install torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124</code></pre>
+
+  <div class="callout callout-info">
+    <span class="callout-icon">💡</span>
+    <div class="callout-content">
+      <p>DGX Spark 的 Grace Hopper 架构建议使用 CUDA 12.4+ 和 PyTorch 2.6+ 以获得最佳性能。也可以通过 <code>nvidia-smi</code> 查看已安装的 CUDA 版本来选择匹配的 PyTorch 版本。</p>
+    </div>
+  </div>
+
+  <h3>步骤 4：安装 FlashAttention-2（强烈推荐）</h3>
+  <pre><code>pip install flash-attn --no-build-isolation</code></pre>
+
+  <div class="callout callout-success">
+    <span class="callout-icon">⚡</span>
+    <div class="callout-content">
+      <p>FlashAttention-2 可以将训练速度提升 2-3 倍，同时减少显存占用。DGX Spark 的 Grace Blackwell 架构完全兼容。</p>
+    </div>
+  </div>
+
+  <h3>步骤 5：安装 LLaMA-Factory</h3>
+  <pre><code># 克隆仓库
+git clone https://github.com/hiyouga/LLaMA-Factory.git
+cd LLaMA-Factory
+
+# 安装依赖（包含所有特性）
+pip install -e ".[torch,metrics]"</code></pre>
+
+  <div class="callout callout-info">
+    <span class="callout-icon">💡</span>
+    <div class="callout-content">
+      <p>安装完成后，可以运行 <code>llamafactory-cli version</code> 验证安装是否成功。</p>
+    </div>
+  </div>
+
+  <h3>步骤 6：配置项目目录</h3>
+  <p>将本教程附带的 <code>qwen-finetune/</code> 目录复制到你的工作目录，或者直接在 <code>LLaMA-Factory/</code> 目录内创建软链接：</p>
+  <pre><code># 方式一：直接复制
+cp -r ~/Desktop/qwen-finetune ~/projects/
+
+# 方式二：符号链接（推荐，方便修改）
+ln -s ~/Desktop/qwen-finetune ~/projects/qwen-finetune</code></pre>
+
+  <h3>步骤 7：验证环境</h3>
+  <pre><code># 验证 CUDA 可用
+python -c "import torch; print('CUDA:', torch.cuda.is_available(), '| GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None')"
+
+# 验证关键库版本
+python -c "
+import transformers, peft, bitsandbytes, accelerate, trl
+print(f'transformers: {transformers.__version__}')
+print(f'peft: {peft.__version__}')
+print(f'bitsandbytes: {bitsandbytes.__version__}')
+print(f'accelerate: {accelerate.__version__}')
+print(f'trl: {trl.__version__}')
+"</code></pre>
+
+  <p>如果一切正常，你应该看到 CUDA 可用，并且各库的版本符合最低要求。</p>
+</section>
+
+<!-- ==================== SECTION 5 ==================== -->
+<section id="data">
+  <h2><span class="num">5</span> 数据集准备与格式说明</h2>
+
+  <h3>📝 Alpaca 格式</h3>
+  <p>本教程使用的数据集采用 <strong>Alpaca 格式</strong>，这是 LLaMA-Factory 支持的标准格式之一。每条数据包含三个字段：</p>
+
+  <table>
+    <thead>
+      <tr><th>字段</th><th>含义</th><th>本实验值</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>instruction</code></td><td>用户指令/问题</td><td>如"什么是 KYC？"</td></tr>
+      <tr><td><code>input</code></td><td>可选的额外输入（本实验为空）</td><td>""</td></tr>
+      <tr><td><code>output</code></td><td>期望的模型回复</td><td>专业金融解答</td></tr>
+    </tbody>
+  </table>
+
+  <h3>📊 数据来源：BELLE 中文指令数据集</h3>
+  <p>本教程的数据集来自 <strong>BELLE (Be Everyone's Large Language model Engine)</strong> 项目，具体使用 <strong><code>BelleGroup/train_0.5M_CN</code></strong> 子集。</p>
+  <ul>
+    <li>原始数据集包含 <strong>519,000 条</strong>中文指令数据，涵盖各类任务</li>
+    <li>从中通过金融关键词（银行、贷款、利率、投资、保险、KYC、Basel 等）筛选出 <strong>63 条</strong>高质量金融问答</li>
+    <li>关键词涵盖银行、投资、宏观经济、公司金融、区块链等子领域</li>
+  </ul>
+
+  <div class="callout callout-info">
+    <span class="callout-icon">📌</span>
+    <div class="callout-content">
+      <p><strong>提取脚本</strong> 在项目 <code>scripts/extract_belle_finance_v2.py</code> 和 <code>scripts/filter_belle_finance.py</code> 中，如需更多数据可以调整阈值重新运行。</p>
+    </div>
+  </div>
+
+  <h3>📄 数据样例</h3>
+  <pre><code>{
+  "instruction": "解释以下金融术语的含义。\n基金、股票、投资回报率",
+  "output": "基金是由多个投资者合资形成的一种集合型投资工具..."
+}</code></pre>
+
+  <h3>🔗 数据集注册</h3>
+  <p><code>data/dataset_info.json</code> 文件告诉 LLaMA-Factory 如何加载我们的自定义数据集：</p>
+  <pre><code>{
+  "financial_qa": {
+    "file_name": "financial_qa.json",
+    "formatting": "alpaca",
+    "columns": {
+      "prompt": "instruction",
+      "query": "",
+      "response": "output"
+    }
+  }
+}</code></pre>
+
+  <div class="callout callout-warning">
+    <span class="callout-icon">⚠️</span>
+    <div class="callout-content">
+      <p>使用 LLaMA Board Web UI 时，需要在 <strong>"数据集"选项卡</strong> 中将 <code>dataset_dir</code> 设置为你的数据目录路径，并在训练配置中引用 <code>dataset_info.json</code> 中定义的名称（如 <code>financial_qa</code>）。</p>
+    </div>
+  </div>
+
+  <h3>📊 数据集统计</h3>
+  <table>
+    <thead>
+      <tr><th>统计项</th><th>数值</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>来源</td><td>BelleGroup/train_0.5M_CN (HuggingFace)</td></tr>
+      <tr><td>原始数据集大小</td><td>519,000 条</td></tr>
+      <tr><td>筛选后样本数</td><td>63 条</td></tr>
+      <tr><td>筛选方式</td><td>金融关键词匹配（银行、投资、保险、利率等）</td></tr>
+      <tr><td>领域</td><td>金融（银行、投资、保险、区块链、宏观经济、税务等）</td></tr>
+      <tr><td>训练集 / 验证集</td><td>56 条 / 7 条 (9:1 自动分割)</td></tr>
+      <tr><td>平均输出长度</td><td>约 120 字/条</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-info">
+    <span class="callout-icon">📌</span>
+    <div class="callout-content">
+      <p><strong>生产建议</strong>：BELLE 数据集质量较高，63 条数据已可看到明显的微调效果。如需更多数据，可以使用项目中 <code>scripts/extract_belle_finance_v2.py</code> 和 <code>scripts/filter_belle_finance.py</code> 脚本，调整关键词列表从 <code>train_0.5M_CN</code>（51.9 万条）或更大的 <code>train_2M_CN</code>（200 万条）中提取更多金融数据。</p>
+    </div>
+  </div>
+
+  <details style="background: var(--bg2); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; margin: 16px 0;">
+    <summary style="cursor: pointer; font-weight: 600; color: #e2e8f0; font-size: 1.05em;">
+      🤔 为什么只用 63 条而不是整个 51.9 万条数据集训练？
+    </summary>
+    <div style="margin-top: 14px;">
+
+    <h4 style="color: #cbd5e1; margin: 16px 0 8px;">🎯 任务目标决定数据选择</h4>
+    <p>我们的目标是让模型在<strong>金融领域回答得更专业</strong>，而不是让它学会通用的指令跟随能力。BELLE <code>train_0.5M_CN</code> 是<strong>全领域</strong>数据集——涵盖翻译、写作、编程、数学、创意、角色扮演、情感分析等。如果直接用全部 51.9 万条训练：</p>
+    <table>
+      <thead>
+        <tr><th>训练方式</th><th>效果</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>全 51.9 万条（泛领域）</td><td>模型学了各类通用能力，但金融知识提升微乎其微（金融数据占比 &lt; 1%）</td></tr>
+        <tr><td>只取金融相关 63 条</td><td>模型在金融问题上显著提升，原有的通用能力不受影响</td></tr>
+      </tbody>
+    </table>
+
+    <h4 style="color: #cbd5e1; margin: 16px 0 8px;">⏱️ 训练效率</h4>
+    <p>按我们的配置（batch=2, gradient accumulation=4, 5 epochs）：</p>
+    <table>
+      <thead>
+        <tr><th>数据量</th><th>训练步数</th><th>预计时间（8GB GPU）</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><strong>63 条</strong></td><td><strong>~315 步</strong></td><td><strong>~10 分钟</strong> ✅</td></tr>
+        <tr><td>51.9 万条</td><td>~260 万步</td><td>数天 ❌</td></tr>
+      </tbody>
+    </table>
+    <p>作为教程和实验，10 分钟跑完完整流程的价值远高于跑几天的黑盒训练。</p>
+
+    <h4 style="color: #cbd5e1; margin: 16px 0 8px;">🧪 可观测性</h4>
+    <p>用 63 条数据训练，你可以清晰观察到：</p>
+    <ul>
+      <li>loss 从 ~2.5 快速下降到 ~0.1</li>
+      <li>微调前后回答质量的<strong>明显差异</strong></li>
+      <li>每个 checkpoint 之间的变化</li>
+    </ul>
+    <p>用全量数据训练几天，loss 缓慢下降，你几乎无法直观判断"训练是否真的有效"。</p>
+
+    <h4 style="color: #cbd5e1; margin: 16px 0 8px;">🔍 提取深度</h4>
+    <p>实际上我们只扫描了前 <strong>6,000 条</strong>（约 1%）就提取到了 63 条金融相关。如果扫描全部 51.9 万条，预计可以提取到 <strong>几千条</strong> 金融数据，效果会更好。</p>
+
+    <h4 style="color: #cbd5e1; margin: 16px 0 8px;">💡 如果你想用更多数据</h4>
+    <p>修改 <code>scripts/extract_belle_finance_v2.py</code> 中的两条阈值：</p>
+    <table>
+      <thead>
+        <tr><th>参数</th><th>当前值</th><th>建议值</th><th>预期结果</th></tr>
+      </thead>
+      <tbody>
+        <tr><td><code>max_scan</code></td><td>只看前 5 万条</td><td>改为扫描全部</td><td>提取 <strong>500-1000 条</strong></td></tr>
+        <tr><td><code>max_count</code></td><td>100 条</td><td>改为 500</td><td>更丰富的金融覆盖</td></tr>
+      </tbody>
+    </table>
+    <p>这样在可接受的训练时间（30-60 分钟）内，用更大规模的金融数据集微调，效果会明显更好。</p>
+
+    <blockquote style="border-left: 3px solid var(--primary); padding: 8px 16px; margin: 14px 0; color: var(--text2);">
+      打个比方：你让一个学生精读一本百科全书，他什么都懂一点但都不深；你让他精读一本金融专业书，金融考试就一定拿高分。63 条金融专用数据正是那本"金融专业书"。
+    </blockquote>
+
+    </div>
+  </details>
+</section>
+
+<!-- ==================== SECTION 6 ==================== -->
+<section id="train">
+  <h2><span class="num">6</span> 启动训练（Web UI 方式）</h2>
+
+  <p>LLaMA Board 是 LLaMA-Factory 提供的图形化 Web 界面，无需编写任何代码即可完成训练配置和启动。以下是详细步骤：</p>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-content">
+      <p><strong>启动 LLaMA Board</strong></p>
+      <pre><code>conda activate llamafactory
+cd LLaMA-Factory
+llamafactory-cli webui</code></pre>
+      <p>或者使用项目自带的脚本：</p>
+      <pre><code>bash ~/Desktop/qwen-finetune/scripts/start_webui.sh</code></pre>
+      <p>启动成功后，终端会显示类似 <code>Running on local URL: http://localhost:7860</code> 的提示。</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-content">
+      <p><strong>打开浏览器访问 Web UI</strong></p>
+      <p>在 DGX Spark 的浏览器中打开 <code>http://localhost:7860</code>，你将看到 LLaMA Board 的主界面。</p>
+      <p>界面分为左右两栏：左侧是配置区，右侧是实时日志和监控面板。</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">3</div>
+    <div class="step-content">
+      <p><strong>配置模型与训练参数</strong></p>
+      <p>按照下面的表格在 Web UI 中逐项填写：</p>
+
+      <h4>📋 "模型" 选项卡</h4>
+      <table>
+        <thead><tr><th>参数</th><th>值</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>模型名称</td><td><code>Qwen/Qwen2.5-7B-Instruct</code></td><td>HuggingFace 模型 ID</td></tr>
+          <tr><td>微调方法</td><td><code>lora</code></td><td>LoRA 微调</td></tr>
+          <tr><td>量化位数</td><td><code>4</code></td><td>4-bit QLoRA</td></tr>
+          <tr><td>量化方法</td><td><code>bitsandbytes</code></td><td>NBits 量化后端</td></tr>
+        </tbody>
+      </table>
+
+      <h4>📋 "数据集" 选项卡</h4>
+      <table>
+        <thead><tr><th>参数</th><th>值</th></tr></thead>
+        <tbody>
+          <tr><td>数据集目录 (dataset_dir)</td><td>你的 qwen-finetune/data 路径</td></tr>
+          <tr><td>数据集 (dataset)</td><td><code>financial_qa</code></td></tr>
+          <tr><td>模板 (template)</td><td><code>qwen</code></td></tr>
+          <tr><td>最大长度 (cutoff_len)</td><td><code>2048</code></td></tr>
+          <tr><td>验证集比例 (val_size)</td><td><code>0.1</code></td></tr>
+        </tbody>
+      </table>
+
+      <h4>📋 "LoRA" 选项卡</h4>
+      <table>
+        <thead><tr><th>参数</th><th>值</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>LoRA 秩 (rank)</td><td><code>8</code></td><td>推荐 8-16</td></tr>
+          <tr><td>LoRA Alpha</td><td><code>16</code></td><td>通常为 rank 的 2 倍</td></tr>
+          <tr><td>LoRA Dropout</td><td><code>0.05</code></td><td>防止过拟合</td></tr>
+          <tr><td>LoRA Target</td><td><code>all</code></td><td>对所有线性层应用 LoRA</td></tr>
+        </tbody>
+      </table>
+
+      <h4>📋 "训练" 选项卡</h4>
+      <table>
+        <thead><tr><th>参数</th><th>值</th><th>说明</th></tr></thead>
+        <tbody>
+          <tr><td>训练轮数</td><td><code>5</code></td><td>小数据集可适当增加</td></tr>
+          <tr><td>学习率</td><td><code>2e-4</code></td><td>LoRA 常用学习率</td></tr>
+          <tr><td>Batch Size</td><td><code>2</code></td><td>每设备 batch size</td></tr>
+          <tr><td>梯度累积</td><td><code>4</code></td><td>等效 batch = 2×4 = 8</td></tr>
+          <tr><td>学习率调度</td><td><code>cosine</code></td><td>余弦退火</td></tr>
+          <tr><td>预热比例</td><td><code>0.05</code></td><td>前 5% 步数线性预热</td></tr>
+          <tr><td>精度</td><td><code>bf16</code> 开启</td><td>DGX Spark 支持 bf16</td></tr>
+          <tr><td>Flash Attention</td><td><code>auto</code></td><td>自动检测使用</td></tr>
+        </tbody>
+      </table>
+
+      <h4>📋 "保存" 选项卡</h4>
+      <table>
+        <thead><tr><th>参数</th><th>值</th></tr></thead>
+        <tbody>
+          <tr><td>输出目录</td><td><code>output/qwen-qlora-financial</code></td></tr>
+          <tr><td>保存策略</td><td><code>epoch</code></td></tr>
+          <tr><td>最多保留 Checkpoints</td><td><code>3</code></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">4</div>
+    <div class="step-content">
+      <p><strong>点击"开始训练"</strong></p>
+      <p>确认所有参数填写无误后，点击 Web UI 底部的 <strong>"开始训练"</strong> 按钮。</p>
+      <p>训练开始后，你可以在右侧的日志面板中实时看到：</p>
+      <ul>
+        <li>模型加载进度</li>
+        <li>每步的 loss 值</li>
+        <li>每轮的训练和验证 loss</li>
+        <li>显存占用情况</li>
+        <li>预计剩余时间</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="step">
+    <div class="step-num">5</div>
+    <div class="step-content">
+      <p><strong>等待训练完成</strong></p>
+      <p>以 10 条数据、5 轮训练为例，在 DGX Spark 上预计只需 <strong>5-10 分钟</strong>即可完成。</p>
+      <p>训练完成后，模型权重会自动保存在 <code>output/qwen-qlora-financial/</code> 目录下。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 7 ==================== -->
+<section id="train-cli">
+  <h2><span class="num">7</span> 启动训练（命令行方式）</h2>
+
+  <p>如果你更习惯使用命令行，或者需要在后台静默运行训练，可以使用 CLI 模式。这种方式也适合将训练集成到自动化流水线中。</p>
+
+  <h3>📟 一键训练命令</h3>
+  <pre><code>conda activate llamafactory
+
+cd ~/Desktop/qwen-finetune
+llamafactory-cli train config/train_qwen_qlora.yaml</code></pre>
+
+  <h3>🔧 使用训练脚本</h3>
+  <pre><code>bash ~/Desktop/qwen-finetune/scripts/start_training.sh</code></pre>
+
+  <h3>📊 训练参数详解</h3>
+  <p>核心训练配置 <code>config/train_qwen_qlora.yaml</code> 中的关键参数说明：</p>
+
+  <table>
+    <thead>
+      <tr><th>参数</th><th>值</th><th>说明</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><code>finetuning_type: lora</code></td><td>lora</td><td>使用 LoRA 微调方法</td></tr>
+      <tr><td><code>quantization_bit: 4</code></td><td>4</td><td>4-bit 量化 → QLoRA</td></tr>
+      <tr><td><code>lora_target: all</code></td><td>all</td><td>对模型所有线性层应用 LoRA，效果最好</td></tr>
+      <tr><td><code>lora_rank: 8</code></td><td>8</td><td>LoRA 秩。8 在效果和效率间取得平衡，越大越强但也越贵</td></tr>
+      <tr><td><code>per_device_train_batch_size: 2</code></td><td>2</td><td>每个 GPU 的 batch size。DGX Spark 可以设更高</td></tr>
+      <tr><td><code>gradient_accumulation_steps: 4</code></td><td>4</td><td>梯度累积 4 步，等效 batch size = 2×4 = 8</td></tr>
+      <tr><td><code>learning_rate: 2.0e-4</code></td><td>2e-4</td><td>LoRA 常用学习率，比全参数微调高 10 倍</td></tr>
+      <tr><td><code>num_train_epochs: 5</code></td><td>5</td><td>训练 5 轮，小数据集建议多训练几轮</td></tr>
+      <tr><td><code>bf16: true</code></td><td>true</td><td>使用 bfloat16 精度，DGX Spark 原生支持</td></tr>
+      <tr><td><code>flash_attn: auto</code></td><td>auto</td><td>自动启用 FlashAttention 加速</td></tr>
+    </tbody>
+  </table>
+
+  <h3>📈 训练进度解读</h3>
+  <p>训练过程中你会看到类似下面的日志输出：</p>
+  <pre><code>  0%|...| 1/5 [00:32&lt;02:38, 39.6s/it]
+  {'loss': 2.3841, 'grad_norm': 0.8921, 'lr': 5.2e-05, 'epoch': 0.1}
+
+  20%|...| 1/5 [00:32&lt;02:38, 39.6s/it]
+  {'loss': 1.8452, 'grad_norm': 0.6541, 'lr': 8.6e-05, 'epoch': 0.2}
+
+  40%|...| 2/5 [01:04&lt;01:36, 32.1s/it]
+  {'loss': 1.2103, 'grad_norm': 0.4452, 'lr': 1.2e-04, 'epoch': 0.4}
+  ...</code></pre>
+
+  <p><strong>关键指标解读</strong>：</p>
+  <ul>
+    <li><code>loss</code>：交叉熵损失，越低越好。从 2.5 左右开始，降至 0.5 以下说明模型已较好拟合</li>
+    <li><code>grad_norm</code>：梯度范数，稳定在 1.0 附近为佳，过大说明训练不稳定</li>
+    <li><code>lr</code>：当前学习率，随 cosine 调度器变化</li>
+    <li><code>epoch</code>：当前训练轮次（小数表示部分轮次）</li>
+  </ul>
+</section>
+
+<!-- ==================== SECTION 8 ==================== -->
+<section id="monitor">
+  <h2><span class="num">8</span> 训练监控与 GPU 资源管理</h2>
+
+  <h3>🖥️ GPU 资源监控</h3>
+  <p>在另一个终端窗口中运行以下命令，可以实时查看 GPU 利用率和显存占用：</p>
+
+  <div class="card-grid">
+    <div class="card">
+      <div class="card-title">📊 nvidia-smi 实时刷新</div>
+      <div class="card-desc"><code>watch -n 2 nvidia-smi</code></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📊 精简版监控</div>
+      <div class="card-desc"><code>bash scripts/monitor_gpu.sh</code></div>
+    </div>
+    <div class="card">
+      <div class="card-title">📊 nvtop（需安装）</div>
+      <div class="card-desc"><code>sudo apt install nvtop && nvtop</code></div>
+    </div>
+  </div>
+
+  <h3>📈 训练过程中的关键观察点</h3>
+  <table>
+    <thead>
+      <tr><th>观察项</th><th>正常范围</th><th>异常信号</th><th>解决办法</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>显存占用</td><td>6-7.5 GB (8GB 卡)</td><td>接近 8GB 或 OOM</td><td>减小 batch size 或 cutoff_len</td></tr>
+      <tr><td>GPU 利用率</td><td>80-99%</td><td>&lt;30%</td><td>检查 dataloader_num_workers</td></tr>
+      <tr><td>Loss 值</td><td>持续下降</td><td>震荡/上升</td><td>降低学习率或增加 warmup</td></tr>
+      <tr><td>训练速度</td><td>5-30 it/s</td><td>&lt;1 it/s</td><td>启用 FlashAttention</td></tr>
+    </tbody>
+  </table>
+
+  <h3>🔧 DGX Spark 特有优化</h3>
+  <div class="callout callout-success">
+    <span class="callout-icon">🚀</span>
+    <div class="callout-content">
+      <p><strong>DGX Spark 的 Grace Blackwell 架构优化建议</strong>：</p>
+      <ul>
+        <li>由于 128GB 统一内存，可以安全地将 <code>per_device_train_batch_size</code> 提高到 4-8</li>
+        <li>启用 <code>pure_bf16: true</code> 利用 Grace CPU 的原生 bf16 支持</li>
+        <li><code>dataloader_num_workers</code> 可设为 8-16（充分利用 DGX Spark 的 20 核 ARM CPU）</li>
+        <li>建议在训练时关闭 GUI 应用，将更多资源留给 GPU</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 9 ==================== -->
+<section id="eval">
+  <h2><span class="num">9</span> 模型评估与对话推理</h2>
+
+  <h3>💬 方式一：在 Web UI 中直接对话</h3>
+  <p>训练完成后，在 LLaMA Board 中切换到 <strong>"推理"</strong> 选项卡：</p>
+  <ol>
+    <li>确认模型和 LoRA 路径已正确加载</li>
+    <li>在底部的聊天输入框中输入你的问题</li>
+    <li>点击发送即可看到微调后的模型回复</li>
+  </ol>
+
+  <p><strong>推荐测试问题</strong>（都是 BELLE 数据集中实际涵盖的金融主题）：</p>
+  <pre><code>问：解释以下金融术语的含义：基金、股票、投资回报率
+问：什么是区块链技术以及它的主要应用场景？
+问：请给我推荐一只近期经济增长潜力较高的股票
+问：给出一份个人理财建议，月收入10000元，月开销7000元
+问：什么是金融风险管理？它对银行业的重要性是什么？</code></pre>
+
+  <h3>💬 方式二：命令行推理</h3>
+  <pre><code>conda activate llamafactory
+cd ~/Desktop/qwen-finetune
+
+# 交互式对话
+llamafactory-cli chat config/inference.yaml
+
+# 单轮查询
+llamafactory-cli chat config/inference.yaml \
+  --query "什么是 Basel III？对银行有什么影响？"</code></pre>
+
+  <h3>💬 方式三：API 服务部署</h3>
+  <p>启动兼容 OpenAI API 格式的推理服务：</p>
+  <pre><code>API_PORT=8000 llamafactory-cli api config/inference.yaml</code></pre>
+
+  <p>然后使用 curl 或任何 OpenAI 客户端调用：</p>
+  <pre><code>curl http://localhost:8000/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "Qwen2.5-7B-Financial",
+    "messages": [
+      {"role": "user", "content": "什么是量化宽松政策？"}
+    ]
+  }'</code></pre>
+
+  <h3>📊 与微调前对比</h3>
+  <p>你可以下载原始的 <code>Qwen2.5-7B-Instruct</code> 对同样的问题进行回答，对比微调前后的差异：</p>
+
+  <table>
+    <thead>
+      <tr><th>测试问题</th><th>微调前</th><th>微调后（预期）</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>解释金融术语：基金、股票、投资回报率</td><td>可能分散解释</td><td>结构化分点回答，含专业定义 ✅</td></tr>
+      <tr><td>什么是金融风险管理？</td><td>通用概念解释</td><td>含市场风险、信用风险、流动性风险等专业分类 ✅</td></tr>
+      <tr><td>推荐一本股票投资的好书</td><td>可能无法提供</td><td>推荐《聪明的投资者》+ 价值投资理念 ✅</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout callout-info">
+    <span class="callout-icon">💡</span>
+    <div class="callout-content">
+      <p>由于本教程仅使用 10 条数据进行演示，微调效果有限。实际项目中，高质量的数百条数据即可看到明显提升，数千条数据可达到生产可用水平。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 10 ==================== -->
+<section id="export">
+  <h2><span class="num">10</span> 导出模型并部署到 Ollama</h2>
+
+  <p>微调完成后，可以将 LoRA 权重与基座模型合并，导出为 GGUF 格式，然后用 Ollama 在本地高效运行。</p>
+
+  <h3>📤 导出为 GGUF 格式</h3>
+  <pre><code>conda activate llamafactory
+cd ~/Desktop/qwen-finetune
+llamafactory-cli export config/export_ollama.yaml</code></pre>
+
+  <p>导出后的文件会保存在 <code>output/qwen-financial-gguf/</code> 目录下，同时会自动生成 <code>Modelfile</code>。</p>
+
+  <h3>🦙 在 Ollama 中加载运行</h3>
+  <pre><code># 安装 Ollama（如未安装）
+curl -fsSL https://ollama.com/install.sh | sh
+
+# 从导出的 Modelfile 创建模型
+cd output/qwen-financial-gguf
+ollama create qwen-financial -f Modelfile
+
+# 运行模型
+ollama run qwen-financial
+
+# 测试对话
+>>> 什么是 KYC？在银行开户时为什么要做 KYC？
+>>> 解释一下 LPR 利率如何影响房贷</code></pre>
+
+  <h3>🔄 完整流程图示</h3>
+  <pre><code>┌──────────────────┐    ┌──────────────────┐    ┌──────────────────┐
+│  Qwen2.5-7B      │    │  LLaMA-Factory   │    │  GGUF 导出       │
+│  (基座模型)      │ → │  QLoRA 微调      │ → │  + Modelfile     │
+│  16GB → 4-bit    │    │  金融 QA 数据集   │    │  4-bit 量化      │
+└──────────────────┘    └──────────────────┘    └──────────────────┘
+                                                         ↓
+                                                  ┌──────────────────┐
+                                                  │  Ollama 部署     │
+                                                  │  ollama run      │
+                                                  │  qwen-financial  │
+                                                  └──────────────────┘</code></pre>
+
+  <div class="callout callout-success">
+    <span class="callout-icon">✅</span>
+    <div class="callout-content">
+      <p>部署到 Ollama 后，你可以通过 <code>http://localhost:11434</code> 的 OpenAI 兼容 API 在任意应用中调用你的微调模型，包括各种 AI 聊天应用、自动化脚本等。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 11 ==================== -->
+<section id="troubleshoot">
+  <h2><span class="num">11</span> 常见问题与故障排除</h2>
+
+  <div class="callout callout-danger">
+    <span class="callout-icon">🔴</span>
+    <div class="callout-content">
+      <p><strong>CUDA Out of Memory (OOM)</strong></p>
+      <p><strong>现象</strong>：训练开始时显示 <code>CUDA out of memory</code> 错误。</p>
+      <p><strong>解决</strong>：</p>
+      <ol>
+        <li>减小 <code>per_device_train_batch_size</code> 到 1</li>
+        <li>减小 <code>cutoff_len</code> 到 1024</li>
+        <li>确认 <code>quantization_bit: 4</code> 已设置</li>
+        <li>关闭其他 GPU 应用（浏览器、PyCharm 等）</li>
+        <li>重启终端释放 GPU 缓存</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="callout callout-danger">
+    <span class="callout-icon">🔴</span>
+    <div class="callout-content">
+      <p><strong>bitsandbytes 安装失败</strong></p>
+      <p><strong>现象</strong>：安装 bitsandbytes 时报错。</p>
+      <p><strong>解决</strong>：</p>
+      <ol>
+        <li>确认 CUDA 版本匹配：<code>pip install bitsandbytes --index-url https://download.pytorch.org/whl/cu124</code></li>
+        <li>DGX Spark ARM64 可用：<code>pip install https://github.com/jllllll/bitsandbytes-windows-webui/releases/download/wheels/bitsandbytes-0.43.3-cp311-cp311-win_amd64.whl</code>（替换为 ARM 版本）</li>
+        <li>或使用 <code>pip install -U bitsandbytes</code> 尝试最新版</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="callout callout-danger">
+    <span class="callout-icon">🔴</span>
+    <div class="callout-content">
+      <p><strong>Dataset 加载失败</strong></p>
+      <p><strong>现象</strong>：提示 <code>Dataset financial_qa not found</code>。</p>
+      <p><strong>解决</strong>：</p>
+      <ol>
+        <li>确认 <code>data/dataset_info.json</code> 文件存在于正确的路径</li>
+        <li>确认 <code>dataset_dir</code> 指向 <code>data/</code> 目录（包含 dataset_info.json 的目录）</li>
+        <li>确认 <code>dataset_info.json</code> 中的 <code>file_name</code> 路径正确</li>
+        <li>JSON 文件格式正确，无拼写错误</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="callout callout-danger">
+    <span class="callout-icon">🔴</span>
+    <div class="callout-content">
+      <p><strong>FlashAttention 不可用</strong></p>
+      <p><strong>现象</strong>：训练速度很慢，或提示 FlashAttention 相关错误。</p>
+      <p><strong>解决</strong>：</p>
+      <ol>
+        <li>确认 CUDA 版本 ≥ 11.6：<code>nvcc --version</code></li>
+        <li>DGX Spark 的 Blackwell 架构完全兼容 FlashAttention-2</li>
+        <li>如果编译失败，设置 <code>flash_attn: false</code> 回退到标准 attention</li>
+      </ol>
+    </div>
+  </div>
+
+  <div class="callout callout-danger">
+    <span class="callout-icon">🔴</span>
+    <div class="callout-content">
+      <p><strong>模型下载太慢</strong></p>
+      <p><strong>现象</strong>：从 HuggingFace 下载 Qwen2.5-7B 耗时过长。</p>
+      <p><strong>解决</strong>：</p>
+      <ol>
+        <li>设置镜像站加速：<code>export HF_ENDPOINT=https://hf-mirror.com</code></li>
+        <li>先手动下载：<code>huggingface-cli download Qwen/Qwen2.5-7B-Instruct --local-dir ./models/qwen2.5-7b</code></li>
+        <li>然后在配置中将 <code>model_name_or_path</code> 指向本地路径</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<!-- ==================== SECTION 12 ==================== -->
+<section id="appendix">
+  <h2><span class="num">12</span> 附录：参数详解</h2>
+
+  <h3>📖 关键训练参数详解</h3>
+
+  <div class="card">
+    <div class="card-title"><code>finetuning_type</code> — 微调类型</div>
+    <div class="card-desc">
+      <p><code>lora</code>: LoRA 微调（推荐）<br>
+      <code>full</code>: 全参数微调（需要大量显存）<br>
+      <code>freeze</code>: 冻结部分层微调<br>
+      <strong>本实验：</strong><code>lora</code></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><code>quantization_bit</code> — 量化位数</div>
+    <div class="card-desc">
+      <p><code>4</code>: 4-bit 量化（QLoRA，约 6GB 显存）<br>
+      <code>8</code>: 8-bit 量化（约 10GB 显存）<br>
+      <code>none</code>: 不量化（约 16GB 显存）<br>
+      <strong>本实验：</strong><code>4</code>（最大化降低显存需求）</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><code>lora_rank</code> — LoRA 秩</div>
+    <div class="card-desc">
+      <p>LoRA 矩阵的秩（rank），影响微调的"容量"：<br>
+      <code>8</code>: 推荐值，效果与效率的平衡点<br>
+      <code>16</code>: 更强表达力，适合复杂任务<br>
+      <code>32</code>: 最强但训练更慢<br>
+      <code>64+</code>: 收益递减，通常不需要<br>
+      <strong>本实验：</strong><code>8</code></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><code>lora_alpha</code> — LoRA 缩放因子</div>
+    <div class="card-desc">
+      <p>控制 LoRA 更新的缩放比例。<br>
+      通常设为 <code>lora_rank × 2</code>（如 rank=8 则 alpha=16）。<br>
+      值越大，LoRA 更新的影响越大。<br>
+      <strong>本实验：</strong><code>16</code></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><code>learning_rate</code> — 学习率</div>
+    <div class="card-desc">
+      <p>LoRA/QLoRA 通常比全参数微调高 10 倍：<br>
+      <code>1e-4</code>: 激进，适合大数据集<br>
+      <code>2e-4</code>: 通常推荐值 ✅<br>
+      <code>5e-4</code>: 快速但可能不稳定<br>
+      <code>1e-5</code>: 保守，适合极小数据集<br>
+      <strong>本实验：</strong><code>2e-4</code></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><code>per_device_train_batch_size</code> — 每设备 batch size</div>
+    <div class="card-desc">
+      <p>每个 GPU 每次前向传播的样本数。<br>
+      显存充足时可提高；出现 OOM 时减小。<br>
+      DGX Spark (128GB 统一内存) 可设到 4-8。<br>
+      <strong>本实验：</strong><code>2</code>（保守设置，运行稳定）</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><code>gradient_accumulation_steps</code> — 梯度累积步数</div>
+    <div class="card-desc">
+      <p>累积 N 步的梯度后再更新参数。等效模拟更大的 batch size。<br>
+      总 batch size = <code>per_device_train_batch_size × gradient_accumulation_steps × GPU数量</code><br>
+      <strong>本实验：</strong><code>4</code>（等效 batch = 2×4 = 8）</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><code>num_train_epochs</code> — 训练轮数</div>
+    <div class="card-desc">
+      <p>整个训练集被遍历的次数。<br>
+      小数据集（百条级）需要 5-20 轮<br>
+      大数据集（万条级）通常 2-5 轮即够<br>
+      <strong>本实验：</strong><code>5</code>（仅 10 条数据，5 轮已足够）</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><code>lr_scheduler_type</code> — 学习率调度器</div>
+    <div class="card-desc">
+      <p><code>cosine</code>: 余弦退火，平滑下降（推荐）<br>
+      <code>linear</code>: 线性下降<br>
+      <code>constant</code>: 恒定学习率<br>
+      <code>polynomial</code>: 多项式衰减<br>
+      <strong>本实验：</strong><code>cosine</code></p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-title"><code>cutoff_len</code> — 最大序列长度</div>
+    <div class="card-desc">
+      <p>模型能处理的最大 token 数。<br>
+      越长，占用显存越多，但能处理更长的上下文。<br>
+      <code>512</code>: 节省显存，适合简单问答<br>
+      <code>1024</code>: 适中<br>
+      <code>2048</code>: 推荐，大多数场景足够 ✅<br>
+      <code>4096+</code>: 需大量显存<br>
+      <strong>本实验：</strong><code>2048</code></p>
+    </div>
+  </div>
+
+  <h3>🧪 进阶参数调优建议</h3>
+  <table>
+    <thead>
+      <tr><th>你的显存</th><th>推荐配置</th><th>预期效果</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>4 GB</td><td>QLoRA + batch=1 + cutoff=512 + rank=4</td><td>勉强运行，速度较慢</td></tr>
+      <tr><td>8 GB ✅</td><td><strong>本实验配置: QLoRA + batch=2 + cutoff=2048 + rank=8</strong></td><td>流畅运行，效果优良</td></tr>
+      <tr><td>16 GB</td><td>QLoRA + batch=4 + cutoff=4096 + rank=16</td><td>大 batch，长上下文</td></tr>
+      <tr><td>24 GB+</td><td>LoRA (8-bit) + batch=8 + cutoff=4096</td><td>更大的训练容量</td></tr>
+      <tr><td>128 GB (DGX Spark)</td><td>QLoRA + batch=8 + cutoff=4096 + rank=16</td><td>极速训练，充分利用统一内存</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ==================== FOOTER ==================== -->
+<div class="divider">✦ ✦ ✦</div>
+
+<div style="text-align:center; padding: 30px 0;">
+  <p style="font-size: 1.2em; color: #e2e8f0;">🎉 恭喜！你已经完成了 LLaMA-Factory 微调的全部流程！</p>
+  <p style="color: var(--text2); margin-top: 8px;">
+    从环境搭建 → 数据集准备 → QLoRA 微调 → 模型评估 → Ollama 部署，你已经掌握了完整的大模型微调闭环。
+  </p>
+  <p style="color: var(--text2); margin-top: 20px; font-size: 0.95em;">
+    📖 更多资源：<a href="https://llamafactory.readthedocs.io/zh-cn/latest/" style="color: #818cf8;">LLaMA-Factory 官方文档</a>
+    &nbsp;·&nbsp; <a href="https://github.com/hiyouga/LLaMA-Factory" style="color: #818cf8;">GitHub 仓库</a>
+    &nbsp;·&nbsp; <a href="https://blog.llamafactory.net/" style="color: #818cf8;">官方博客</a>
+  </p>
+</div>
+
+</div>
+
+<footer>
+  <p>LLaMA-Factory 微调实战教程 &mdash; Qwen2.5-7B + QLoRA on NVIDIA DGX Spark</p>
+  <p style="margin-top: 4px;">由 LLaMA-Factory 社区驱动 · 2025</p>
+</footer>
+
+</body>
+</html>
