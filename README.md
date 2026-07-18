@@ -1,9 +1,4 @@
-# 🦙 Qwen2.5-7B QLoRA 微调项目
-
-[![LLaMA-Factory](https://img.shields.io/badge/框架-LLaMA--Factory-blueviolet)](https://github.com/hiyouga/LLaMA-Factory)
-[![Model](https://img.shields.io/badge/模型-Qwen2.5--7B--Instruct-blue)](https://huggingface.co/Qwen/Qwen2.5-7B-Instruct)
-[![Method](https://img.shields.io/badge/方法-QLoRA%204--bit-cyan)](https://github.com/huggingface/peft)
-[![Hardware](https://img.shields.io/badge/硬件-NVIDIA%20DGX%20Spark-green)]()
+# Qwen2.5-7B QLoRA 微调项目
 
 在 **NVIDIA DGX Spark** 上使用 **LLaMA-Factory** 框架，通过 **QLoRA (4-bit)** 技术微调 **Qwen2.5-7B-Instruct** 模型，使其具备金融领域问答能力。
 
