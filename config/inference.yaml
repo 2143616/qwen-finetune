@@ -3,7 +3,7 @@
 # 使用微调后的 LoRA 权重进行对话推理
 # ============================================================
 
-model_name_or_path: Qwen/Qwen2.5-7B-Instruct
+model_name_or_path: /home/hyl/project/qwen-finetune/models/qwen2.5-7b
 trust_remote_code: true
 
 adapter_name_or_path: output/qwen-qlora-financial

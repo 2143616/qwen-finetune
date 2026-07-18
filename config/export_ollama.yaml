@@ -1,19 +1,15 @@
 # ============================================================
-# LLaMA-Factory 模型导出配置文件
-# 将微调后的 LoRA 权重合并并导出为 GGUF 格式
-# 然后可直接用 Ollama 加载运行
+# 第一步：合并 LoRA 权重到基座模型
+# 不做量化，输出标准 HuggingFace 格式
 # ============================================================
 
-model_name_or_path: Qwen/Qwen2.5-7B-Instruct
+model_name_or_path: /home/hyl/project/qwen-finetune/models/qwen2.5-7b
 trust_remote_code: true
 
 adapter_name_or_path: output/qwen-qlora-financial
 
 finetuning_type: lora
 template: qwen
-export_dir: output/qwen-financial-gguf
-export_size: 2                           # Max shard size in GB
-export_quantization_bit: 4               # GGUF 量化位数
-export_quantization_dataset: data/financial_qa.json
-export_device: cpu                       # CPU 导出 (更稳定)
-export_to_ollama: true                   # 自动生成 Ollama Modelfile
+export_dir: output/qwen-financial-merged
+export_size: 2
+export_device: cpu

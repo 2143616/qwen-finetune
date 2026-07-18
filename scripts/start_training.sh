@@ -17,16 +17,14 @@ echo "=========================================="
 
 cd "$PROJECT_DIR"
 
-ENV_NAME="llamafactory"
+ENV_PREFIX=/home/hyl/miniconda3/envs/qwen_fintune
+export PATH="$ENV_PREFIX/bin:$PATH"
+export PYTHONPATH=""
+export LLAMAFACTORY_VERBOSITY=ERROR     # 只输出 ERROR 日志
 
-if command -v conda &> /dev/null; then
-    echo "[INFO] 使用 conda 环境: $ENV_NAME"
-    echo "[INFO] 开始训练..."
-    conda run -n "$ENV_NAME" llamafactory-cli train config/train_qwen_qlora.yaml
-else
-    echo "[INFO] 开始训练..."
-    llamafactory-cli train config/train_qwen_qlora.yaml
-fi
+echo "[INFO] 使用环境: qwen_fintune"
+echo "[INFO] 开始训练..."
+"$ENV_PREFIX/bin/llamafactory-cli" train config/train_qwen_qlora.yaml
 
 echo ""
 echo "=========================================="

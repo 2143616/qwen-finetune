@@ -14,6 +14,12 @@ build/
 # 训练输出
 output/
 
+# llama.cpp 工具（自动 clone，不上传）
+llama.cpp/
+
+# HTML 文档（不上传，本地查看）
+README.html
+
 # IDE
 .vscode/
 .idea/
